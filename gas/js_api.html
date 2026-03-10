@@ -1,0 +1,31 @@
+<script>
+    // API 通訊層 (Phase 2 實作)
+    var api = {
+        call: function (action, payload) {
+            return new Promise(function (resolve, reject) {
+                google.script.run
+                    .withSuccessHandler(function (response) {
+                        var res = JSON.parse(response);
+                        if (res.success) resolve(res.data);
+                        else reject(new Error(res.error));
+                    })
+                    .withFailureHandler(reject)
+                    .doPost(JSON.stringify({ action: action, payload: payload })); // 注意 GAS HtmlService 不支援直接 doPost，這需用另外的 workound 或改用 google.script.run 呼叫後端函式
+            });
+        },
+        // 因為 doPost 外部呼叫用，GAS 內部呼叫我們改寫一個後端 Proxy 函式 `apiRouter`
+        run: function (action, payload) {
+            return new Promise(function (resolve, reject) {
+                google.script.run
+                    .withSuccessHandler(function (res) {
+                        // res 已在後端序列化為 JSON 字串
+                        var result = JSON.parse(res);
+                        if (result.success) resolve(result.data);
+                        else reject(new Error(result.error));
+                    })
+                    .withFailureHandler(reject)
+                    .routeRequestJSON(action, payload);
+            });
+        }
+    };
+</script>
