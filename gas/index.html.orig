@@ -55,7 +55,7 @@
             </div>
 
             <!-- 動態掛載頁面視圖 -->
-            <component :is="currentViewComponent" v-bind="currentViewProps" @navigate="navigate"></component>
+            <component :is="currentViewComponent" v-bind="currentViewProps"></component>
             
         </main>
     </div>
@@ -65,7 +65,6 @@
     
     <!-- 引入 API 模組與 Vue 邏輯 -->
     <?!= HtmlService.createHtmlOutputFromFile('js_api').getContent(); ?>
-    <?!= HtmlService.createHtmlOutputFromFile('js_quotation_form').getContent(); ?>
     <?!= HtmlService.createHtmlOutputFromFile('js_app').getContent(); ?>
 </body>
 </html>

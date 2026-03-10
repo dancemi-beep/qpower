@@ -1,0 +1,350 @@
+<script>
+/**
+ * 報價單建立與編輯視圖元件
+ */
+const QuotationFormView = {
+    template: `
+        <div>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="page-title mb-0">{{ isEdit ? '編輯報價單' : '建立新報價單' }}</h2>
+                <button class="btn btn-outline-secondary" @click="$emit('navigate', 'quotations')">
+                    <i class="bi bi-arrow-left me-1"></i>返回列表
+                </button>
+            </div>
+
+            <div class="row g-4">
+                <!-- 左側：填寫區 -->
+                <div class="col-lg-8">
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-white py-3">
+                            <h5 class="card-title mb-0">基本資料</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small mb-1">選擇客戶 <span class="text-danger">*</span></label>
+                                    <select class="form-select" v-model="form.clientId">
+                                        <option value="">-- 請選擇 --</option>
+                                        <option v-for="c in clients" :key="c.clientId" :value="c.clientId">{{ c.companyName }}</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small mb-1">專案名稱</label>
+                                    <input type="text" class="form-control" v-model="form.projectName" placeholder="可留空">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">服務項目明細</h5>
+                            <button class="btn btn-sm btn-primary" @click="addEmptyItem">
+                                <i class="bi bi-plus"></i>新增自訂項目
+                            </button>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width: 5%">#</th>
+                                            <th style="width: 25%">服務名稱</th>
+                                            <th style="width: 25%">執行方式</th>
+                                            <th style="width: 15%">計價方式 / 單價</th>
+                                            <th style="width: 15%">數量</th>
+                                            <th style="width: 10%" class="text-end">小計</th>
+                                            <th style="width: 5%"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="(item, idx) in form.items" :key="idx">
+                                            <td>{{ idx + 1 }}</td>
+                                            <td>
+                                                <select class="form-select form-select-sm mb-1" v-model="item.serviceId" @change="onServiceSelect(item)">
+                                                    <option v-for="s in catalog" :key="s.serviceId" :value="s.serviceId">{{ s.serviceName }}</option>
+                                                    <option value="custom">-- 自訂項目 --</option>
+                                                </select>
+                                                <input v-if="item.serviceId === 'custom'" type="text" class="form-control form-control-sm" v-model="item.customName" placeholder="輸入自訂服務名稱">
+                                                <input v-else-if="item.serviceId" type="text" class="form-control form-control-sm mt-1 bg-light text-muted" v-model="item.customName" placeholder="備註/調整名稱 (可留空)">
+                                            </td>
+                                            <td>
+                                                <select class="form-select form-select-sm mb-1" v-model="item.executionSelect" @change="onExecutionSelect(item)">
+                                                    <option v-for="ex in getExecutionOptions(item)" :key="ex" :value="ex">{{ ex }}</option>
+                                                    <option value="custom">-- 自訂 --</option>
+                                                </select>
+                                                <input v-if="item.executionSelect === 'custom'" type="text" class="form-control form-control-sm" v-model="item.executionMethod" placeholder="輸入自訂執行方式">
+                                            </td>
+                                            <td>
+                                                <select class="form-select form-select-sm mb-1" v-model="item.pricingMethod">
+                                                    <option v-for="pm in pricingMethods" :key="pm" :value="pm">{{ pm }}</option>
+                                                </select>
+                                                <input type="number" class="form-control form-control-sm" v-model.number="item.unitPrice" placeholder="單價">
+                                            </td>
+                                            <td>
+                                                <input type="number" class="form-control form-control-sm" v-model.number="item.quantity" min="1">
+                                            </td>
+                                            <td class="text-end fw-semibold">
+                                                {{ formatCurrency((item.quantity || 1) * (item.unitPrice || 0)) }}
+                                            </td>
+                                            <td class="text-end">
+                                                <button class="btn btn-sm btn-outline-danger border-0" @click="removeItem(idx)" title="刪除">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                        <tr v-if="form.items.length === 0">
+                                            <td colspan="7" class="text-center py-4 text-muted">
+                                                <i class="bi bi-info-circle me-1"></i>尚未新增服務項目
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右側：計算與設定 -->
+                <div class="col-lg-4">
+                    <div class="card border-0 shadow-sm mb-4 position-sticky" style="top: 20px;">
+                        <div class="card-header bg-white py-3">
+                            <h5 class="card-title mb-0">金額計算</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="text-muted">基本小計</span>
+                                <span>{{ formatCurrency(calculated.subtotal) }}</span>
+                            </div>
+                            
+                            <hr class="text-muted opacity-25">
+                            
+                            <div class="mb-3">
+                                <label class="form-label text-muted small mb-1">折扣設定</label>
+                                <div class="input-group input-group-sm">
+                                    <select class="form-select" style="max-width: 100px;" v-model="form.discountType">
+                                        <option value="none">無折扣</option>
+                                        <option value="percentage">% 折扣</option>
+                                        <option value="fixed">折讓金</option>
+                                    </select>
+                                    <input type="number" class="form-control" v-model.number="form.discountValue" :disabled="form.discountType === 'none'">
+                                </div>
+                            </div>
+
+                            <div class="d-flex justify-content-between mb-2 text-primary">
+                                <span>折後金額</span>
+                                <span>{{ formatCurrency(calculated.discountedTotal) }}</span>
+                            </div>
+
+                            <div class="d-flex justify-content-between mb-3 text-muted">
+                                <span>額外項目 (人天) 小計</span>
+                                <span>+ {{ formatCurrency(calculated.additionalTotal) }}</span>
+                            </div>
+
+                            <div class="bg-light p-3 rounded text-center">
+                                <div class="text-muted small mb-1">總預估費用 ({{ form.taxIncluded ? '含稅' : '未稅' }})</div>
+                                <h3 class="mb-0 text-primary fw-bold">{{ formatCurrency(calculated.grandTotal) }}</h3>
+                            </div>
+                            
+                            <div class="form-check form-switch mt-3 d-flex justify-content-end">
+                              <input class="form-check-input me-2" type="checkbox" role="switch" id="taxSwitch" v-model="form.taxIncluded">
+                              <label class="form-check-label text-muted small" for="taxSwitch">含營業稅 (5%)</label>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-white py-3 border-top-0 d-flex gap-2">
+                            <button class="btn btn-light flex-grow-1">預覽</button>
+                            <button class="btn btn-primary flex-grow-1" @click="saveQuotation">
+                                <i class="bi bi-save me-1"></i>儲存草稿
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `,
+    props: {
+        quotationId: { type: String, default: null }
+    },
+    setup(props, { emit }) {
+        const clients = ref([]);
+        const catalog = ref([]);
+        const pricingMethods = ref(['整筆價', '人天', '小時']);
+        
+        const form = ref({
+            clientId: '',
+            projectName: '',
+            items: [],
+            discountType: 'none',
+            discountValue: 0,
+            taxIncluded: false,
+            notes: '',
+            paymentTerms: ''
+        });
+
+        const isEdit = computed(() => !!props.quotationId);
+
+        // 初始化載入依賴資料
+        onMounted(async () => {
+             try {
+                // 從真實 API 抓取資料
+                const [clientRes, catalogRes] = await Promise.all([
+                    api.client.getAll(),
+                    api.catalog.getAll()
+                ]);
+                
+                clients.value = clientRes.data || [];
+                catalog.value = catalogRes.data || [];
+
+                // 如果是建立模式，先預設給一筆
+                if (!isEdit.value && form.value.items.length === 0) {
+                    addEmptyItem();
+                }
+
+             } catch(e) {
+                 console.error('Data loading error:', e);
+             }
+        });
+
+        // 取得特定項目的執行方式選項
+        const getExecutionOptions = (item) => {
+            const options = new Set();
+            
+            // 1. 如果選中特定服務，加入該服務的預設執行方式
+            if (item.serviceId && item.serviceId !== 'custom') {
+                const srv = catalog.value.find(s => s.serviceId === item.serviceId);
+                if (srv && srv.executionMethod) options.add(srv.executionMethod);
+            }
+            
+            // 2. 加入目錄中所有不重複的執行方式作為參考
+            catalog.value.forEach(s => {
+                if (s.executionMethod) options.add(s.executionMethod);
+            });
+            
+            return Array.from(options);
+        };
+
+        // 選擇服務項目代碼時的連動
+        const onServiceSelect = (item) => {
+            if (item.serviceId === 'custom') {
+                item.customName = '';
+                item.unitPrice = 0;
+                item.executionSelect = 'custom';
+                item.executionMethod = '';
+                item.type = 'normal';
+                return;
+            }
+            
+            const srv = catalog.value.find(s => s.serviceId === item.serviceId);
+            if (srv) {
+                item.customName = ''; // 選擇預設服務時，此欄位變為備註性質
+                item.executionMethod = srv.executionMethod;
+                item.executionSelect = srv.executionMethod;
+                item.pricingMethod = srv.pricingMethod;
+                item.unitPrice = srv.defaultPrice;
+                item.quantity = 1;
+                item.type = srv.pricingMethod === '人天' ? 'additional' : 'normal';
+            }
+        };
+
+        const onExecutionSelect = (item) => {
+            if (item.executionSelect !== 'custom') {
+                item.executionMethod = item.executionSelect;
+            } else {
+                item.executionMethod = '';
+            }
+        };
+
+        const addEmptyItem = () => {
+            form.value.items.push({
+                serviceId: catalog.value.length > 0 ? catalog.value[0].serviceId : 'custom',
+                customName: '',
+                executionSelect: '',
+                executionMethod: '',
+                pricingMethod: '整筆價',
+                unitPrice: 0,
+                quantity: 1,
+                type: 'normal'
+            });
+            // 呼叫一次連動初始
+            onServiceSelect(form.value.items[form.value.items.length-1]);
+        };
+
+        const removeItem = (idx) => {
+            form.value.items.splice(idx, 1);
+        };
+
+        const calculated = computed(() => {
+            let sub = 0;
+            let add = 0;
+
+            form.value.items.forEach(it => {
+                const amt = (it.quantity || 1) * (it.unitPrice || 0);
+                if (it.type === 'additional') {
+                    add += amt;
+                } else {
+                    sub += amt;
+                }
+            });
+
+            let disc = sub;
+            if (form.value.discountType === 'percentage' && form.value.discountValue > 0) {
+                 disc = sub * (1 - (form.value.discountValue / 100));
+            } else if (form.value.discountType === 'fixed' && form.value.discountValue > 0) {
+                 disc = Math.max(0, sub - form.value.discountValue);
+            }
+
+            return {
+                subtotal: sub,
+                discountedTotal: disc,
+                additionalTotal: add,
+                grandTotal: disc + add
+            };
+        });
+
+        const formatCurrency = (val) => {
+            if (isNaN(val)) return '$0';
+            return new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', minimumFractionDigits: 0 }).format(val);
+        };
+
+        const saveQuotation = async () => {
+            if (!form.value.clientId) {
+                alert('請先選擇客戶！');
+                return;
+            }
+            if (form.value.items.length === 0) {
+                alert('請至少新增一個服務項目！');
+                return;
+            }
+
+            isLoading.value = true;
+            try {
+                const response = await api.quotation.create(form.value);
+                console.log('Save Success:', response);
+                alert('報價單已成功儲存！');
+                emit('navigate', 'quotations');
+            } catch (e) {
+                console.error('Save Error:', e);
+                alert('儲存失敗：' + e.message);
+            } finally {
+                isLoading.value = false;
+            }
+        };
+
+        return {
+            clients,
+            catalog,
+            pricingMethods,
+            form,
+            isEdit,
+            addEmptyItem,
+            removeItem,
+            onServiceSelect,
+            onExecutionSelect,
+            getExecutionOptions,
+            calculated,
+            formatCurrency,
+            saveQuotation
+        };
+    }
+};
+</script>

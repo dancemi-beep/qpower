@@ -1,92 +1,90 @@
 /**
- * 諮力顧問報價單管理系統 - API 入口點
- * Code.gs
+ * Web App 入口與路由
  */
 
-/**
- * 處理 HTTP GET 請求 (回傳前端 Web 介面)
- */
 function doGet(e) {
-  // 渲染 SPA 主頁面
-  var html = HtmlService.createTemplateFromFile('index').evaluate();
-  html.setTitle('諮力顧問報價單管理系統');
-  html.setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-  html.addMetaTag('viewport', 'width=device-width, initial-scale=1');
-  return html;
+  const page = e.parameter.page || 'index';
+  return HtmlService.createTemplateFromFile(page)
+    .evaluate()
+    .setTitle('諮力報價單系統')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
-/**
- * 處理 HTTP POST 請求 (JSON API)
- */
 function doPost(e) {
   try {
-    if (!e.postData || !e.postData.contents) {
-      return apiError('Missing request body');
-    }
+    const postData = JSON.parse(e.postData.contents);
+    const result = routeApi(postData);
+    return ContentService.createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: err.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
 
-    var request = JSON.parse(e.postData.contents);
-    var action = request.action;
-    var payload = request.payload || {};
+/**
+ * 處理來自前端的請求
+ */
+function routeApi(request) {
+  try {
+    const { action, payload } = request;
+    console.log(`[API Request] Action: ${action}`);
+    let result;
 
     if (!action) {
-      return apiError('Missing action parameter');
+      throw new Error('Missing action parameter');
     }
 
-    // 路由分發
-    var result = routeRequest(action, payload);
-    return apiSuccess(result);
+    // 根據 action 名稱前綴分派到對應的 Service
+    if (action.startsWith('Catalog.')) {
+      result = handleCatalogAction(action.split('.')[1], payload);
+    } else if (action.startsWith('Client.')) {
+      result = handleClientAction(action.split('.')[1], payload);
+    } else if (action.startsWith('Quotation.')) {
+      result = handleQuotationAction(action.split('.')[1], payload);
+    } else if (action.startsWith('Company.')) {
+      result = handleCompanyAction(action.split('.')[1], payload);
+    } else if (action === 'System.initializeDatabase') {
+      initializeDatabase();
+      result = { message: 'Database initialized with defaults' };
+    } else {
+      throw new Error(`Unknown action type: ${action}`);
+    }
 
+    return { success: true, data: result };
   } catch (err) {
-    Logger.log('API Error: ' + err.message + '\n' + err.stack);
-    return apiError(err.message);
+    console.error(`[API Error] ${request.action}:`, err);
+    return { success: false, error: err.toString() };
   }
 }
 
 /**
- * HtmlService 引入其他檔案 (用於 index.html 內嵌 css/js)
+ * 各模組的 Action 處理函式 (待實作)
  */
-function include(filename) {
-  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+function handleCatalogAction(method, payload) {
+  const service = new CatalogService();
+  switch (method) {
+    case 'getAll': return service.getAll();
+    case 'getPricingMethods': return service.getPricingMethods();
+    default: throw new Error(`Unknown method: Catalog.${method}`);
+  }
 }
 
-/**
- * 初始化系統 (首次執行用，建立所需 Sheets 與欄位)
- */
-function initSystem() {
-  var ss = getSpreadsheet();
-  
-  var sheetsDef = {
-    '公司資訊': ['companyName', 'companyNameEn', 'contactPerson', 'phone', 'lineId', 'address', 'email'],
-    '客戶資料': ['clientId', 'companyName', 'contactPerson', 'contactPhone', 'contactEmail', 'address', 'notes'],
-    '服務項目': ['serviceId', 'serviceName', 'description', 'executionMethod', 'defaultPrice', 'unit', 'category'],
-    '報價單': ['quotationId', 'quotationDate', 'validUntil', 'clientId', 'projectName', 'subtotal', 'discountType', 'discountValue', 'discountedTotal', 'grandTotal', 'taxIncluded', 'status', 'notes', 'paymentTerms', 'createdAt', 'updatedAt'],
-    '報價明細': ['quotationId', 'itemNo', 'serviceId', 'customName', 'customDescription', 'executionMethod', 'quantity', 'unit', 'unitPrice', 'amount'],
-    '備註模板': ['templateId', 'title', 'content'],
-    '付款條件': ['templateId', 'title', 'content']
-  };
+function handleClientAction(method, payload) {
+  // const service = new ClientService();
+  // ...
+  return { success: true, message: 'Not implemented yet' };
+}
 
-  for (var name in sheetsDef) {
-    var sheet = ss.getSheetByName(name);
-    if (!sheet) {
-      sheet = ss.insertSheet(name);
-    }
-    // 永遠重設第一列為標頭
-    sheet.getRange(1, 1, 1, sheetsDef[name].length).setValues([sheetsDef[name]]);
-    // 凍結第一列
-    sheet.setFrozenRows(1);
-  }
-  
-  // 寫入預設公司資料 (若為空)
-  var companySheet = ss.getSheetByName('公司資訊');
-  if (companySheet.getLastRow() <= 1) {
-    companySheet.appendRow([
-      '諮力管理顧問股份有限公司', 
-      'QPower Management Consulting Co., Ltd.',
-      '秘詩穎',
-      '0988-563-600',
-      'IMITATE',
-      '',
-      ''
-    ]);
-  }
+function handleQuotationAction(method, payload) {
+  // const service = new QuotationService();
+  // ...
+  return { success: true, message: 'Not implemented yet' };
+}
+
+function handleCompanyAction(method, payload) {
+  return { success: true, message: 'Not implemented yet' };
 }

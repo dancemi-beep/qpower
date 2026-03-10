@@ -48,14 +48,10 @@
         <!-- 主要內容區 -->
         <main class="container-fluid px-4 pb-5">
             <!-- Loading Overlay -->
-            <div v-if="isLoading" class="d-flex justify-content-center align-items-center position-fixed top-0 start-0 w-100 h-100 bg-white" style="z-index: 1050; opacity: 0.8;">
-                <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
-                    <span class="visually-hidden">載入中...</span>
-                </div>
-            </div>
+            
 
             <!-- 動態掛載頁面視圖 -->
-            <component :is="currentViewComponent" v-bind="currentViewProps" @navigate="navigate"></component>
+            <component :is="currentViewComponent" v-bind="currentViewProps"></component>
             
         </main>
     </div>

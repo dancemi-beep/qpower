@@ -1,31 +1,66 @@
 <script>
-    // API 通訊層 (Phase 2 實作)
-    var api = {
-        call: function (action, payload) {
-            return new Promise(function (resolve, reject) {
+    /**
+     * 前端 API 封裝 (與 Google Apps Script 溝通層)
+     * 使用 Promise 確保所有的呼叫都是非同步可等待的
+     */
+    const api = {
+
+        /**
+         * 發送請求至後端 doPost
+         * @param {string} action - 請求的方法，例如 'Catalog.getAll'
+         * @param {Object} payload - 傳遞的參數
+         */
+        request(action, payload = {}) {
+            return new Promise((resolve, reject) => {
+                // 開發環境 (本機端)
+                if (typeof google === 'undefined' || typeof google.script === 'undefined') {
+                    console.warn(`[DEV MODE] Mock API Call: ${action}`, payload);
+                    if (window.mockApi && typeof window.mockApi[action] === 'function') {
+                        setTimeout(() => {
+                            resolve(window.mockApi[action](payload));
+                        }, 500);
+                    } else {
+                        reject(new Error(`Mock API not found for action: ${action}`));
+                    }
+                    return;
+                }
+
+                // 正式環境 (GAS 內)
+                const postData = JSON.stringify({ action, payload });
+
                 google.script.run
-                    .withSuccessHandler(function (response) {
-                        var res = JSON.parse(response);
-                        if (res.success) resolve(res.data);
-                        else reject(new Error(res.error));
+                    .withSuccessHandler((res) => {
+                        if (res && res.success === false) {
+                            reject(new Error(res.error || 'API 錯誤'));
+                        } else if (res && res.success === true) {
+                            resolve(res); // 這裡回傳整個物件，包含 .data
+                        } else {
+                            // 處理舊版或非預期格式
+                            resolve({ success: true, data: res });
+                        }
                     })
-                    .withFailureHandler(reject)
-                    .doPost(JSON.stringify({ action: action, payload: payload })); // 注意 GAS HtmlService 不支援直接 doPost，這需用另外的 workound 或改用 google.script.run 呼叫後端函式
+                    .withFailureHandler((error) => {
+                        console.error('GAS Error:', error);
+                        reject(error);
+                    })
+                    .routeApi(JSON.parse(postData)); // 呼叫 Code.gs 中的 routeApi()
             });
         },
-        // 因為 doPost 外部呼叫用，GAS 內部呼叫我們改寫一個後端 Proxy 函式 `apiRouter`
-        run: function (action, payload) {
-            return new Promise(function (resolve, reject) {
-                google.script.run
-                    .withSuccessHandler(function (res) {
-                        // res 已在後端序列化為 JSON 字串
-                        var result = JSON.parse(res);
-                        if (result.success) resolve(result.data);
-                        else reject(new Error(result.error));
-                    })
-                    .withFailureHandler(reject)
-                    .routeRequestJSON(action, payload);
-            });
+
+        catalog: {
+            getAll: () => api.request('Catalog.getAll'),
+            getPricingMethods: () => api.request('Catalog.getPricingMethods')
+        },
+
+        client: {
+            getAll: () => api.request('Client.getAll'),
+            create: (data) => api.request('Client.create', { data })
+        },
+
+        quotation: {
+            getAll: () => api.request('Quotation.getAll'),
+            getById: (id) => api.request('Quotation.getById', { id }),
+            create: (data) => api.request('Quotation.create', { data })
         }
     };
 </script>

@@ -1,0 +1,220 @@
+<script>
+/**
+ * Vue 3 主應用程式與路由控制器
+ */
+const { createApp, ref, computed, onMounted } = Vue;
+
+// 頁面元件 (尚未實作實體內容，僅佔位)
+const DashboardView = { 
+    template: `
+        <div>
+            <div class="row g-4 mb-4">
+                <div class="col-md-4">
+                    <div class="card border-0 shadow-sm bg-primary text-white">
+                        <div class="card-body">
+                            <h6 class="card-title opacity-75 small">本月報價件數</h6>
+                            <h2 class="mb-0 fw-bold">0</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body">
+                            <h6 class="card-title text-muted small">待處理客戶回覆</h6>
+                            <h2 class="mb-0 fw-bold">0</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body">
+                            <h6 class="card-title text-muted small">本月預估營業額</h6>
+                            <h2 class="mb-0 fw-bold">$0</h2>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-white py-3">
+                            <h5 class="card-title mb-0">最近建立的報價單</h5>
+                        </div>
+                        <div class="card-body text-center py-5 text-muted">目前尚無近期活動資料</div>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white py-3">
+                            <h5 class="card-title mb-0">快速操作</h5>
+                        </div>
+                        <div class="list-group list-group-flush">
+                            <a href="#" class="list-group-item list-group-item-action py-3" @click.prevent="$emit('navigate', 'quotation-form')">
+                                <i class="bi bi-plus-circle me-2 text-primary"></i>建立新報價單
+                            </a>
+                            <a href="#" class="list-group-item list-group-item-action py-3" @click.prevent="$emit('navigate', 'clients')">
+                                <i class="bi bi-people me-2 text-primary"></i>新增客戶資料
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    ` 
+};
+// 報價單列表
+const QuotationListView = { 
+    template: `
+        <div>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="page-title mb-0">報價單管理</h2>
+                <button class="btn btn-primary shadow-sm" @click="$emit('navigate', 'quotation-form')">
+                    <i class="bi bi-plus-lg me-1"></i>建立報價單
+                </button>
+            </div>
+            
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>報價編號</th>
+                                    <th>客戶名稱</th>
+                                    <th>專案名稱</th>
+                                    <th>金額 (未稅)</th>
+                                    <th>狀態</th>
+                                    <th class="text-end">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-if="list.length === 0">
+                                    <td colspan="6" class="text-center py-5 text-muted">
+                                        <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+                                        尚未建立任何報價單
+                                    </td>
+                                </tr>
+                                <tr v-for="q in list" :key="q.quotationId">
+                                    <td>{{ q.quotationId }}</td>
+                                    <td>{{ q.clientName }}</td>
+                                    <td>{{ q.projectName || '-' }}</td>
+                                    <td>{{ formatCurrency(q.subtotal) }}</td>
+                                    <td><span class="badge bg-secondary opacity-75">{{ q.status }}</span></td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-link text-decoration-none">詳情</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `,
+    setup() {
+        const list = ref([]);
+        const isLoading = ref(false);
+
+        const loadData = async () => {
+            isLoading.value = true;
+            try {
+                const res = await api.quotation.getAll();
+                list.value = res.data || [];
+            } catch (e) {
+                console.error('Load Error:', e);
+            } finally {
+                isLoading.value = false;
+            }
+        };
+
+        onMounted(loadData);
+
+        const formatCurrency = (val) => new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', minimumFractionDigits: 0 }).format(val);
+        return { list, isLoading, formatCurrency, loadData };
+    }
+};
+
+const ClientView = { 
+    template: `
+        <div>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="page-title mb-0">客戶管理</h2>
+                <button class="btn btn-primary shadow-sm disabled">
+                    <i class="bi bi-person-plus me-1"></i>新增客戶 (開發中)
+                </button>
+            </div>
+            <div class="card border-0 shadow-sm p-5 text-center text-muted">目前暫無客戶資料</div>
+        </div>
+    ` 
+};
+
+const CatalogView = { 
+    template: `
+        <div>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="page-title mb-0">服務項目目錄</h2>
+            </div>
+            <div class="card border-0 shadow-sm p-5 text-center text-muted">服務清單 (開發中)</div>
+        </div>
+    ` 
+};
+
+const app = createApp({
+    setup() {
+        const currentRoute = ref('dashboard');
+        const isLoading = ref(false);
+
+        // 簡易路由對映
+        const routes = {
+            'dashboard': DashboardView,
+            'clients': ClientView,
+            'catalog': CatalogView,
+            'quotations': QuotationListView,
+            'quotation-form': QuotationFormView
+        };
+
+        const currentViewComponent = computed(() => {
+            return routes[currentRoute.value] || DashboardView;
+        });
+
+        // 可傳遞給子元件的 Props
+        const currentViewProps = ref({});
+
+        // 導航方法
+        const navigate = (route, props = {}) => {
+            isLoading.value = true;
+            setTimeout(() => {
+                currentRoute.value = route;
+                currentViewProps.value = props;
+                isLoading.value = false;
+            }, 300);
+        };
+
+        // 全域 Loading 控制
+        const withLoading = async (asyncFn) => {
+            isLoading.value = true;
+            try {
+                return await asyncFn();
+            } finally {
+                isLoading.value = false;
+            }
+        };
+
+        onMounted(() => {
+            console.log('App Mounted');
+        });
+
+        return {
+            currentRoute,
+            currentViewComponent,
+            currentViewProps,
+            navigate,
+            isLoading,
+            withLoading
+        };
+    }
+});
+
+app.mount('#app');
+</script>
