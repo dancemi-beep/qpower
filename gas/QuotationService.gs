@@ -8,7 +8,36 @@ class QuotationService {
   }
 
   getAll() {
-     return this.quotationDao.getAll();
+     const quotations = this.quotationDao.getAll();
+     const clients = new ClientService().getAll();
+
+     console.log(`[Debug] Quotations count: ${quotations.length}`);
+     console.log(`[Debug] Clients count: ${clients.length}`);
+     if (quotations.length > 0) {
+       console.log(`[Debug] Quotation[0] raw keys: ${Object.keys(quotations[0]).join(', ')}`);
+       console.log(`[Debug] Quotation[0] raw JSON: ${JSON.stringify(quotations[0])}`);
+     }
+     if (clients.length > 0) {
+       console.log(`[Debug] Client[0] raw keys: ${Object.keys(clients[0]).join(', ')}`);
+     }
+
+     // 建立 ID 對映表以提高搜尋效率
+     const clientMap = {};
+     clients.forEach(c => {
+       clientMap[c.clientId] = c.companyName;
+     });
+
+     // 將客戶名稱合併回報價單物件，同時確保數字欄位正確
+     const result = quotations.map(q => ({
+       ...q,
+       subtotal: Number(q.subtotal) || 0,
+       discountedTotal: Number(q.discountedTotal) || 0,
+       grandTotal: Number(q.grandTotal) || 0,
+       clientName: clientMap[q.clientId] || '未知客戶'
+     }));
+
+     console.log(`[Debug] Final result[0]: ${result.length > 0 ? JSON.stringify(result[0]) : 'EMPTY'}`);
+     return result;
   }
 
   getById(id) {
@@ -27,15 +56,15 @@ class QuotationService {
   create(data) {
      const { items, ...headerData } = data;
      
-     // 1. 產生自訂格式的報價單編號 (格式: #YYYYMMDD-NNN)
+     // 1. 產生自訂格式的報價單編號 (格式: QUO-YYYYMMDD-NNN)
      const now = new Date();
      const dateStr = `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}`;
-     
+
      const allQuotations = this.quotationDao.getAll();
      const todayCount = allQuotations.filter(q => q.quotationId && q.quotationId.includes(dateStr)).length;
      const seqNo = (todayCount + 1).toString().padStart(3, '0');
-     
-     headerData.quotationId = `#${dateStr}-${seqNo}`;
+
+     headerData.quotationId = `QUO-${dateStr}-${seqNo}`;
      headerData.quotationDate = Utils.getCurrentTimestamp().split('T')[0]; // YYYY-MM-DD
      headerData.status = '草稿';
      headerData.createdAt = Utils.getCurrentTimestamp();
@@ -63,6 +92,16 @@ class QuotationService {
   }
 
   /**
+   * 刪除報價單（連同明細項目）
+   */
+  delete(id) {
+     // 先刪明細
+     this.itemDao.deleteByQuery({ quotationId: id });
+     // 再刪主表
+     return this.quotationDao.delete(id);
+  }
+
+  /**
    * 更新報價單
    */
   update(id, data) {
@@ -79,10 +118,18 @@ class QuotationService {
      
      const updatedQuotation = this.quotationDao.update(id, headerUpdate);
 
-     // 更新明細項目 (簡化版：全部刪除舊的再新增新的)
+     // 更新明細項目：刪除舊的再新增新的
      if (items) {
-        // [TODO] 實作刪除舊 items (需擴充 DAO 支援依條件刪除)
-        // 此處為概念展示，暫未實作 delete 操作
+        this.itemDao.deleteByQuery({ quotationId: id });
+        items.forEach((item, index) => {
+          const itemObj = {
+            ...item,
+            quotationId: id,
+            itemNo: index + 1,
+            amount: (item.quantity || 1) * (item.unitPrice || 0)
+          };
+          this.itemDao.insert(itemObj);
+        });
      }
 
      return updatedQuotation;

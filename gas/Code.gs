@@ -47,6 +47,12 @@ function routeApi(request) {
       result = handleQuotationAction(action.split('.')[1], payload);
     } else if (action.startsWith('Company.')) {
       result = handleCompanyAction(action.split('.')[1], payload);
+    } else if (action.startsWith('Contact.')) {
+      result = handleContactAction(action.split('.')[1], payload);
+    } else if (action.startsWith('Note.')) {
+      result = handleNoteAction(action.split('.')[1], payload);
+    } else if (action.startsWith('Template.')) {
+      result = handleTemplateAction(action.split('.')[1], payload);
     } else if (action === 'System.initializeDatabase') {
       initializeDatabase();
       result = { message: 'Database initialized with defaults' };
@@ -62,29 +68,10 @@ function routeApi(request) {
 }
 
 /**
- * 各模組的 Action 處理函式 (待實作)
+ * 各模組的 Action 處理函式已全數遷移至 Router.gs
  */
-function handleCatalogAction(method, payload) {
-  const service = new CatalogService();
-  switch (method) {
-    case 'getAll': return service.getAll();
-    case 'getPricingMethods': return service.getPricingMethods();
-    default: throw new Error(`Unknown method: Catalog.${method}`);
-  }
-}
 
-function handleClientAction(method, payload) {
-  // const service = new ClientService();
-  // ...
-  return { success: true, message: 'Not implemented yet' };
-}
-
-function handleQuotationAction(method, payload) {
-  // const service = new QuotationService();
-  // ...
-  return { success: true, message: 'Not implemented yet' };
-}
-
-function handleCompanyAction(method, payload) {
-  return { success: true, message: 'Not implemented yet' };
+// 補助函式，用於在 HTML 模板中包含其他檔案
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }

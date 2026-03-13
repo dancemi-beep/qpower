@@ -19,13 +19,20 @@ class SheetDAO {
   getAll() {
     const dataRange = this.sheet.getDataRange();
     const values = dataRange.getValues();
-    
+
     if (values.length <= 1) return []; // 只有標頭或空的
-    
+
     const headers = values[0];
     const rows = values.slice(1);
-    
-    return Utils.rowsToObjects(headers, rows);
+
+    // 將每一格的值正規化：Date→ISO字串、數字保留、空值→空字串
+    const sanitizedRows = rows.map(row => row.map(cell => {
+      if (cell instanceof Date) return cell.toISOString();
+      if (cell === null || cell === undefined) return '';
+      return cell;
+    }));
+
+    return Utils.rowsToObjects(headers, sanitizedRows);
   }
 
   /**
@@ -72,8 +79,12 @@ class SheetDAO {
     if (headers.includes('updatedAt')) dataObj.updatedAt = Utils.getCurrentTimestamp();
 
     const rowArray = Utils.objectToRow(headers, dataObj);
-    this.sheet.appendRow(rowArray);
-    
+    // 用 setValues + 純文字格式寫入，避免 Google Sheets 自動轉型（如電話號碼前導零被吃掉）
+    const newRowIdx = this.sheet.getLastRow() + 1;
+    const range = this.sheet.getRange(newRowIdx, 1, 1, rowArray.length);
+    range.setNumberFormat('@');   // 所有格子設為純文字
+    range.setValues([rowArray]);
+
     return dataObj;
   }
 
@@ -120,6 +131,65 @@ class SheetDAO {
     this.sheet.getRange(targetRowIdx, 1, 1, headers.length).setValues([newRowArray]);
     
     return mergedObj;
+  }
+
+  /**
+   * 根據 ID 刪除單筆資料 (第一欄為 ID)
+   * @param {string} id - 要刪除的記錄 ID
+   * @returns {boolean} 是否成功刪除
+   */
+  delete(id) {
+    const dataRange = this.sheet.getDataRange();
+    const values = dataRange.getValues();
+
+    if (values.length <= 1) return false;
+
+    for (let i = 1; i < values.length; i++) {
+      if (String(values[i][0]) === String(id)) {
+        this.sheet.deleteRow(i + 1); // Sheet row 是 1-based，且第 0 列是標頭
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * 根據查詢條件刪除多筆資料
+   * @param {Object} query - 查詢條件，如 { quotationId: '#20260310-001' }
+   * @returns {number} 刪除的筆數
+   */
+  deleteByQuery(query) {
+    const headers = this.getHeaders();
+    const camelHeaders = headers.map(h => {
+      if (typeof h !== 'string' || !h.includes(' ')) return h;
+      return h.split(' ').map((word, i) => {
+        if (i === 0) return word.toLowerCase();
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      }).join('');
+    });
+
+    const dataRange = this.sheet.getDataRange();
+    const values = dataRange.getValues();
+    if (values.length <= 1) return 0;
+
+    // 從最後一列往前刪，避免 index 偏移
+    let deletedCount = 0;
+    for (let i = values.length - 1; i >= 1; i--) {
+      const row = values[i];
+      let match = true;
+      for (const key in query) {
+        const colIdx = camelHeaders.indexOf(key);
+        if (colIdx === -1 || String(row[colIdx]) !== String(query[key])) {
+          match = false;
+          break;
+        }
+      }
+      if (match) {
+        this.sheet.deleteRow(i + 1);
+        deletedCount++;
+      }
+    }
+    return deletedCount;
   }
 
   /**

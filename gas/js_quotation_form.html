@@ -169,6 +169,7 @@ const QuotationFormView = {
         const clients = ref([]);
         const catalog = ref([]);
         const pricingMethods = ref(['整筆價', '人天', '小時']);
+        const isLoading = ref(false);
         
         const form = ref({
             clientId: '',
@@ -186,22 +187,54 @@ const QuotationFormView = {
         // 初始化載入依賴資料
         onMounted(async () => {
              try {
-                // 從真實 API 抓取資料
+                isLoading.value = true;
                 const [clientRes, catalogRes] = await Promise.all([
                     api.client.getAll(),
                     api.catalog.getAll()
                 ]);
-                
+
                 clients.value = clientRes.data || [];
                 catalog.value = catalogRes.data || [];
 
-                // 如果是建立模式，先預設給一筆
-                if (!isEdit.value && form.value.items.length === 0) {
-                    addEmptyItem();
+                // 編輯模式：載入既有報價單資料
+                if (isEdit.value) {
+                    const res = await api.quotation.getById(props.quotationId);
+                    if (res.data) {
+                        const q = res.data;
+                        form.value.clientId = q.clientId || '';
+                        form.value.projectName = q.projectName || '';
+                        form.value.discountType = q.discountType || 'none';
+                        form.value.discountValue = Number(q.discountValue) || 0;
+                        form.value.taxIncluded = q.taxIncluded === true || q.taxIncluded === 'true';
+                        form.value.notes = q.notes || '';
+                        form.value.paymentTerms = q.paymentTerms || '';
+
+                        // 載入明細項目
+                        if (q.items && q.items.length > 0) {
+                            form.value.items = q.items.map(item => ({
+                                serviceId: item.serviceId || '',
+                                customName: item.customName || '',
+                                customDescription: item.customDescription || '',
+                                executionMethod: item.executionMethod || '',
+                                pricingMethod: item.pricingMethod || '整筆價',
+                                quantity: Number(item.quantity) || 1,
+                                unitPrice: Number(item.unitPrice) || 0
+                            }));
+                        } else {
+                            addEmptyItem();
+                        }
+                    }
+                } else {
+                    // 建立模式，先預設給一筆
+                    if (form.value.items.length === 0) {
+                        addEmptyItem();
+                    }
                 }
 
              } catch(e) {
                  console.error('Data loading error:', e);
+             } finally {
+                 isLoading.value = false;
              }
         });
 
@@ -318,9 +351,15 @@ const QuotationFormView = {
 
             isLoading.value = true;
             try {
-                const response = await api.quotation.create(form.value);
+                let response;
+                if (isEdit.value) {
+                    response = await api.quotation.update(props.quotationId, form.value);
+                    alert('報價單已成功更新！');
+                } else {
+                    response = await api.quotation.create(form.value);
+                    alert('報價單已成功儲存！');
+                }
                 console.log('Save Success:', response);
-                alert('報價單已成功儲存！');
                 emit('navigate', 'quotations');
             } catch (e) {
                 console.error('Save Error:', e);

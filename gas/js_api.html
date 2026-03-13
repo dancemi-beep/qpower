@@ -1,9 +1,10 @@
 <script>
+    console.log('JS_API Loaded v1.0.3');
     /**
      * 前端 API 封裝 (與 Google Apps Script 溝通層)
      * 使用 Promise 確保所有的呼叫都是非同步可等待的
      */
-    const api = {
+    window.api = {
 
         /**
          * 發送請求至後端 doPost
@@ -30,6 +31,7 @@
 
                 google.script.run
                     .withSuccessHandler((res) => {
+                        console.log(`[API Response] ${action}:`, res);
                         if (res && res.success === false) {
                             reject(new Error(res.error || 'API 錯誤'));
                         } else if (res && res.success === true) {
@@ -49,18 +51,46 @@
 
         catalog: {
             getAll: () => api.request('Catalog.getAll'),
+            getById: (id) => api.request('Catalog.getById', { id }),
+            create: (data) => api.request('Catalog.create', { data }),
+            update: (id, data) => api.request('Catalog.update', { id, data }),
+            delete: (id) => api.request('Catalog.delete', { id }),
             getPricingMethods: () => api.request('Catalog.getPricingMethods')
         },
 
         client: {
             getAll: () => api.request('Client.getAll'),
-            create: (data) => api.request('Client.create', { data })
+            getById: (id) => api.request('Client.getById', { id }),
+            getFullProfile: (id) => api.request('Client.getFullProfile', { id }),
+            create: (data) => api.request('Client.create', { data }),
+            update: (id, data) => api.request('Client.update', { id, data }),
+            delete: (id) => api.request('Client.delete', { id })
+        },
+
+        contact: {
+            getByClientId: (clientId) => api.request('Contact.getByClientId', { clientId }),
+            create: (data) => api.request('Contact.create', { data }),
+            update: (id, data) => api.request('Contact.update', { id, data }),
+            delete: (id) => api.request('Contact.delete', { id })
+        },
+
+        note: {
+            getByClientId: (clientId) => api.request('Note.getByClientId', { clientId }),
+            create: (data) => api.request('Note.create', { data }),
+            delete: (id) => api.request('Note.delete', { id })
         },
 
         quotation: {
             getAll: () => api.request('Quotation.getAll'),
             getById: (id) => api.request('Quotation.getById', { id }),
-            create: (data) => api.request('Quotation.create', { data })
+            create: (data) => api.request('Quotation.create', { data }),
+            update: (id, data) => api.request('Quotation.update', { id, data }),
+            delete: (id) => api.request('Quotation.delete', { id })
+        },
+
+        template: {
+            getNotes: () => api.request('Template.getNotes'),
+            getPaymentTerms: () => api.request('Template.getPaymentTerms')
         }
     };
 </script>

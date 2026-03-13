@@ -9,8 +9,8 @@
 | 階段 | 內容 | 預估工期 | 狀態 |
 |------|------|---------|------|
 | Phase 0 | 需求分析與規劃 | 1 天 | ✅ 已完成 |
-| Phase 1 | 後端核心 (GAS + Sheets) | 2-3 天 | 🔄 進行中 |
-| Phase 2 | 前端 UI 開發 | 3-4 天 | ⏳ 待開始 |
+| Phase 1 | 後端核心 (GAS + Sheets) | 2-3 天 | ✅ 已完成 |
+| Phase 2 | 前端 UI 開發 | 3-4 天 | 🔄 進行中 |
 | Phase 3 | PDF 匯出功能 | 1-2 天 | ⏳ 待開始 |
 | Phase 4 | 整合測試與優化 | 1-2 天 | ⏳ 待開始 |
 
@@ -36,34 +36,35 @@
 ## Phase 1：後端核心 (Google Apps Script)
 
 ### 1.1 Google Sheets 資料結構建立
-- [ ] 建立 Spreadsheet，建立各個 Sheet
-- [ ] 設定欄位標頭與資料驗證
-- [ ] 匯入預設服務項目資料 (7項)
-- [ ] 匯入預設備註模板與付款條件
+- [x] 建立 Spreadsheet，建立各個 Sheet
+- [x] 設定欄位標頭與資料驗證
+- [x] 匯入預設服務項目資料 (7項)
+- [x] 匯入預設備註模板與付款條件
 
 ### 1.2 資料存取層 (SheetDAO.gs)
-- [ ] 實作通用 CRUD 封裝
+- [x] 實作通用 CRUD 封裝
   - `getAll(sheetName)` / `getById(sheetName, id)`
   - `insert(sheetName, rowData)` / `update(sheetName, id, rowData)`
   - `delete(sheetName, id)`
-- [ ] ID 自動產生邏輯
-- [ ] 資料型別轉換 (日期、數字)
+- [x] ID 自動產生邏輯
+- [x] 資料型別轉換 (日期、數字) — Date 物件序列化修復
 
 ### 1.3 API 路由層 (Code.gs + Router.gs)
-- [ ] `doGet()` 渲染前端頁面
-- [ ] `doPost()` 接收 JSON API 請求
-- [ ] Router 根據 action 分發至對應 Service
+- [x] `doGet()` 渲染前端頁面
+- [x] `doPost()` 接收 JSON API 請求
+- [x] Router 根據 action 分發至對應 Service
 
 ### 1.4 業務邏輯層
-- [ ] QuotationService.gs
-  - 報價單 CRUD
+- [x] QuotationService.gs
+  - 報價單完整 CRUD（含 items 刪除重建）
   - 自動計算 (小計、折扣、總額)
   - 狀態管理
-  - 報價編號自動產生 (格式: #YYYYMMDD-NNN)
-- [ ] ClientService.gs
-  - 客戶 CRUD
-- [ ] CatalogService.gs
-  - 服務項目 CRUD
+  - 報價編號自動產生 (格式: QUO-YYYYMMDD-NNN)
+- [x] ClientService.gs
+  - 客戶完整 CRUD（含 delete）
+  - 客戶編號自動產生 (格式: CLT-NNN)
+- [x] CatalogService.gs
+  - 服務項目完整 CRUD（含 delete）
 
 ### 1.5 PDF 產生器 (PdfGenerator.gs)
 - [ ] 建立 Google Docs 報價單模板
@@ -75,40 +76,72 @@
 ## Phase 2：前端 UI 開發
 
 ### 2.1 基礎架構
-- [ ] index.html (SPA 外殼 + 導航)
-- [ ] css.html (設計系統: 色彩、字型、元件)
-- [ ] js_api.html (API 通訊封裝)
-- [ ] js_app.html (路由、狀態管理)
+- [x] index.html (SPA 外殼 + 導航)
+- [x] css.html (設計系統: 色彩、字型、元件)
+- [x] js_api.html (API 通訊封裝 — 完整 CRUD + Template)
+- [x] js_app.html (路由、狀態管理)
 
 ### 2.2 報價單模組
-- [ ] 報價單列表頁 (搜尋、篩選、狀態標籤)
-- [ ] 報價單建立/編輯頁
+- [x] 報價單列表頁 (狀態篩選、刪除功能)
+- [x] 報價單建立/編輯頁
   - 客戶選擇器
   - 服務項目選取 (從目錄勾選)
   - 明細表格 (可編輯數量、單價)
   - 折扣設定
-  - 額外項目 (人天計算)
-  - 備註與付款條件 (模板選取/自訂)
+  - 備註與付款條件
   - 即時金額計算
+  - 編輯模式載入既有資料
 - [ ] 報價單預覽頁 (還原 PDF 排版)
 - [ ] PDF 下載功能
 
 ### 2.3 客戶模組
-- [ ] 客戶列表頁
-- [ ] 客戶新增/編輯 Modal
-- [ ] 客戶歷史報價查詢
+- [x] 客戶列表頁 (js_client.html)
+- [x] 客戶新增/編輯 Modal（單頁完成：基本資料+多聯絡人+多筆要求紀錄）
+- [x] 客戶歷史報價查詢（詳情 Modal 內顯示）
+- [x] 統編欄位 + ClientContacts / ClientNotes 正規化
+- [x] 儲存後 Modal 自動關閉 + Toast 成功提示
+
+### 2.9 客戶功能增強（批次 A — 已完成）
+- [x] Clients Sheet 加 taxId 欄位
+- [x] 新建 ClientContacts / ClientNotes Sheet
+- [x] ContactService / NoteService CRUD
+- [x] ClientService.getFullProfile() 聚合查詢
+- [x] setupSheet() 標頭自動同步修復
+
+### 2.10 報價單功能強化（批次 B — 待做）
+- [ ] 選擇服務項目時自動帶入 executionMethod
+- [ ] 報價單狀態流程：草稿→已報價→已成交/未成交/作廢
+- [ ] 狀態操作按鈕組
+
+### 2.11 通用 UX 優化（批次 C — 待做）
+- [ ] 所有模組儲存/刪除按鈕防連點（disable + spinner）
+- [ ] Toast 提示取代 alert（通用）
 
 ### 2.4 服務項目模組
-- [ ] 服務項目列表頁
-- [ ] 服務項目新增/編輯 Modal
+- [x] 服務項目列表頁 (js_catalog.html)
+- [x] 服務項目新增/編輯 Modal
 
 ### 2.5 公司設定
 - [ ] 公司資訊編輯頁
 
 ### 2.6 儀表板 (Dashboard)
-- [ ] 報價單統計卡片 (本月/本季)
-- [ ] 近期報價單列表
+- [x] 報價單統計卡片 (本月/本季)
+- [x] 近期報價單列表
 - [ ] 即將到期報價單提醒
+
+### 2.7 系統首頁
+- [x] Hero Banner（品牌 + 核心價值主張 + CTA）
+- [x] USP 卡片（中小企業專注/合理預算/一條龍取證/快速導入）
+- [x] 服務項目總覽（從 API 動態載入）
+- [x] ISO 27001 導入流程 Stepper
+- [x] 聯絡資訊區塊（顧問/電話/Email/LINE）
+
+### 2.8 統一編碼原則
+- [x] 客戶編號：CLT-NNN（流水號，ClientService 自動產生）
+- [x] 報價單編號：QUO-YYYYMMDD-NNN（日期+當日流水號）
+- [x] 服務項目編號：SRV-NNN（流水號，已有）
+- [x] 報價明細：UUID（內部用，不顯示於畫面）
+- [x] 前端 UI 清理：所有列表/表單隱藏 UUID，僅顯示業務編碼
 
 ---
 

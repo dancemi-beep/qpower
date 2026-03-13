@@ -1,4 +1,5 @@
 <script>
+console.log('JS_APP Loaded');
 /**
  * Vue 3 主應用程式與路由控制器
  */
@@ -13,7 +14,7 @@ const DashboardView = {
                     <div class="card border-0 shadow-sm bg-primary text-white">
                         <div class="card-body">
                             <h6 class="card-title opacity-75 small">本月報價件數</h6>
-                            <h2 class="mb-0 fw-bold">0</h2>
+                            <h2 class="mb-0 fw-bold">{{ stats.count }}</h2>
                         </div>
                     </div>
                 </div>
@@ -29,7 +30,7 @@ const DashboardView = {
                     <div class="card border-0 shadow-sm">
                         <div class="card-body">
                             <h6 class="card-title text-muted small">本月預估營業額</h6>
-                            <h2 class="mb-0 fw-bold">$0</h2>
+                            <h2 class="mb-0 fw-bold">{{ formatCurrency(stats.total) }}</h2>
                         </div>
                     </div>
                 </div>
@@ -41,7 +42,26 @@ const DashboardView = {
                         <div class="card-header bg-white py-3">
                             <h5 class="card-title mb-0">最近建立的報價單</h5>
                         </div>
-                        <div class="card-body text-center py-5 text-muted">目前尚無近期活動資料</div>
+                        <div class="card-body text-center py-5 text-muted" v-if="recent.length === 0">目前尚無近期活動資料</div>
+                        <div class="card-body p-0" v-else>
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <tbody>
+                                        <tr v-for="q in recent" :key="q.quotationId">
+                                            <td class="ps-3">
+                                                <div class="fw-bold">{{ q.clientName }}</div>
+                                                <div class="text-muted small">{{ q.quotationId }}</div>
+                                            </td>
+                                            <td>{{ q.projectName || '未命名專案' }}</td>
+                                            <td class="text-end pe-3">
+                                                <div class="fw-bold">{{ formatCurrency(q.grandTotal) }}</div>
+                                                <span class="badge bg-light text-dark border">{{ q.status }}</span>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="col-lg-4">
@@ -61,19 +81,56 @@ const DashboardView = {
                 </div>
             </div>
         </div>
-    ` 
+    `,
+    setup() {
+        const recent = ref([]);
+        const stats = ref({ count: 0, total: 0 });
+
+        const loadDashboard = async () => {
+            try {
+                const res = await api.quotation.getAll();
+                console.log('[Dashboard] API raw response:', JSON.stringify(res));
+                const list = res.data || [];
+                console.log('[Dashboard] list length:', list.length);
+                if (list.length > 0) console.log('[Dashboard] first item:', JSON.stringify(list[0]));
+                recent.value = list.slice(0, 5);
+                stats.value = {
+                    count: list.length,
+                    total: list.reduce((sum, q) => sum + (Number(q.grandTotal) || 0), 0)
+                };
+            } catch (e) {
+                console.error('Dashboard Load Error:', e);
+            }
+        };
+
+        const formatCurrency = (val) => new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', minimumFractionDigits: 0 }).format(val);
+
+        onMounted(loadDashboard);
+
+        return { recent, stats, formatCurrency };
+    }
 };
 // 報價單列表
-const QuotationListView = { 
+const QuotationListView = {
     template: `
         <div>
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2 class="page-title mb-0">報價單管理</h2>
-                <button class="btn btn-primary shadow-sm" @click="$emit('navigate', 'quotation-form')">
-                    <i class="bi bi-plus-lg me-1"></i>建立報價單
-                </button>
+                <div class="d-flex gap-2">
+                    <select class="form-select form-select-sm" style="width: auto;" v-model="statusFilter">
+                        <option value="">全部狀態</option>
+                        <option value="草稿">草稿</option>
+                        <option value="已送出">已送出</option>
+                        <option value="已接受">已接受</option>
+                        <option value="已拒絕">已拒絕</option>
+                        <option value="已過期">已過期</option>
+                    </select>
+                    <button class="btn btn-primary shadow-sm" @click="$emit('navigate', 'quotation-form')">
+                        <i class="bi bi-plus-lg me-1"></i>建立報價單
+                    </button>
+                </div>
             </div>
-            
+
             <div class="card border-0 shadow-sm">
                 <div class="card-body p-0">
                     <div class="table-responsive">
@@ -89,20 +146,25 @@ const QuotationListView = {
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr v-if="list.length === 0">
+                                <tr v-if="filteredList.length === 0">
                                     <td colspan="6" class="text-center py-5 text-muted">
                                         <i class="bi bi-inbox fs-2 d-block mb-2"></i>
-                                        尚未建立任何報價單
+                                        {{ statusFilter ? '無符合篩選條件的報價單' : '尚未建立任何報價單' }}
                                     </td>
                                 </tr>
-                                <tr v-for="q in list" :key="q.quotationId">
+                                <tr v-for="q in filteredList" :key="q.quotationId">
                                     <td>{{ q.quotationId }}</td>
                                     <td>{{ q.clientName }}</td>
                                     <td>{{ q.projectName || '-' }}</td>
                                     <td>{{ formatCurrency(q.subtotal) }}</td>
-                                    <td><span class="badge bg-secondary opacity-75">{{ q.status }}</span></td>
+                                    <td><span class="badge" :class="statusBadge(q.status)">{{ q.status }}</span></td>
                                     <td class="text-end">
-                                        <button class="btn btn-sm btn-link text-decoration-none">詳情</button>
+                                        <button class="btn btn-sm btn-outline-primary me-1" @click="$emit('navigate', 'quotation-form', { quotationId: q.quotationId })" title="編輯">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button v-if="q.status === '草稿'" class="btn btn-sm btn-outline-danger" @click="deleteQuotation(q)" title="刪除">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
                                     </td>
                                 </tr>
                             </tbody>
@@ -112,9 +174,20 @@ const QuotationListView = {
             </div>
         </div>
     `,
-    setup() {
+    setup(props, { emit }) {
         const list = ref([]);
         const isLoading = ref(false);
+        const statusFilter = ref('');
+
+        const filteredList = computed(() => {
+            if (!statusFilter.value) return list.value;
+            return list.value.filter(q => q.status === statusFilter.value);
+        });
+
+        const statusBadge = (status) => {
+            const map = { '草稿': 'bg-secondary', '已送出': 'bg-primary', '已接受': 'bg-success', '已拒絕': 'bg-danger', '已過期': 'bg-warning text-dark' };
+            return map[status] || 'bg-secondary';
+        };
 
         const loadData = async () => {
             isLoading.value = true;
@@ -128,45 +201,33 @@ const QuotationListView = {
             }
         };
 
+        const deleteQuotation = async (q) => {
+            if (!confirm(`確定要刪除報價單「${q.quotationId}」嗎？此操作無法復原。`)) return;
+            try {
+                await api.quotation.delete(q.quotationId);
+                await loadData();
+            } catch (e) { alert('刪除失敗：' + e.message); }
+        };
+
         onMounted(loadData);
 
-        const formatCurrency = (val) => new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', minimumFractionDigits: 0 }).format(val);
-        return { list, isLoading, formatCurrency, loadData };
+        const formatCurrency = (val) => new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', minimumFractionDigits: 0 }).format(Number(val) || 0);
+        return { list, filteredList, isLoading, statusFilter, statusBadge, formatCurrency, loadData, deleteQuotation };
     }
 };
 
-const ClientView = { 
-    template: `
-        <div>
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2 class="page-title mb-0">客戶管理</h2>
-                <button class="btn btn-primary shadow-sm disabled">
-                    <i class="bi bi-person-plus me-1"></i>新增客戶 (開發中)
-                </button>
-            </div>
-            <div class="card border-0 shadow-sm p-5 text-center text-muted">目前暫無客戶資料</div>
-        </div>
-    ` 
-};
+// ClientView 已移至 js_client.html
 
-const CatalogView = { 
-    template: `
-        <div>
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2 class="page-title mb-0">服務項目目錄</h2>
-            </div>
-            <div class="card border-0 shadow-sm p-5 text-center text-muted">服務清單 (開發中)</div>
-        </div>
-    ` 
-};
+// CatalogView 已移至 js_catalog.html
 
 const app = createApp({
     setup() {
-        const currentRoute = ref('dashboard');
+        const currentRoute = ref('home');
         const isLoading = ref(false);
 
         // 簡易路由對映
         const routes = {
+            'home': HomeView,
             'dashboard': DashboardView,
             'clients': ClientView,
             'catalog': CatalogView,
@@ -175,7 +236,7 @@ const app = createApp({
         };
 
         const currentViewComponent = computed(() => {
-            return routes[currentRoute.value] || DashboardView;
+            return routes[currentRoute.value] || HomeView;
         });
 
         // 可傳遞給子元件的 Props

@@ -1,0 +1,156 @@
+<script>
+/**
+ * 服務項目目錄模組
+ */
+const CatalogView = {
+    template: `
+        <div>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="page-title mb-0">服務項目目錄</h2>
+                <button class="btn btn-primary shadow-sm" @click="openModal()">
+                    <i class="bi bi-plus-lg me-1"></i>新增服務項目
+                </button>
+            </div>
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>編號</th>
+                                    <th>服務名稱</th>
+                                    <th>執行方式</th>
+                                    <th>計價</th>
+                                    <th class="text-end">預設費用</th>
+                                    <th class="text-end">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-if="list.length === 0">
+                                    <td colspan="6" class="text-center py-5 text-muted">
+                                        <i class="bi bi-box-seam fs-2 d-block mb-2"></i>尚無服務項目
+                                    </td>
+                                </tr>
+                                <tr v-for="s in list" :key="s.serviceId">
+                                    <td><span class="badge bg-light text-dark border">{{ s.serviceId }}</span></td>
+                                    <td class="fw-semibold">{{ s.serviceName }}</td>
+                                    <td>{{ s.executionMethod || '-' }}</td>
+                                    <td><span class="badge bg-light text-dark border">{{ s.pricingMethod }}</span></td>
+                                    <td class="text-end">{{ formatCurrency(s.defaultPrice) }}</td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-primary me-1" @click="openModal(s)"><i class="bi bi-pencil"></i></button>
+                                        <button class="btn btn-sm btn-outline-danger" @click="deleteItem(s)"><i class="bi bi-trash"></i></button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal -->
+            <div class="modal fade" id="catalogModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">{{ isEditMode ? '編輯服務項目' : '新增服務項目' }}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label">服務名稱 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" v-model="form.serviceName">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">服務描述</label>
+                                <textarea class="form-control" rows="2" v-model="form.description"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">執行方式</label>
+                                <input type="text" class="form-control" v-model="form.executionMethod" placeholder="如：顧問諮詢會 (約3小時)">
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <label class="form-label">計價方式</label>
+                                    <select class="form-select" v-model="form.pricingMethod">
+                                        <option value="整筆價">整筆價</option>
+                                        <option value="人天">人天</option>
+                                        <option value="小時">小時</option>
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">預設費用 (NTD)</label>
+                                    <input type="number" class="form-control" v-model.number="form.defaultPrice">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">分類</label>
+                                <input type="text" class="form-control" v-model="form.category" placeholder="如：ISO 導入">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                            <button type="button" class="btn btn-primary" @click="saveItem" :disabled="saving">
+                                <span v-if="saving" class="spinner-border spinner-border-sm me-1"></span>
+                                {{ isEditMode ? '更新' : '建立' }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `,
+    setup() {
+        const list = ref([]);
+        const saving = ref(false);
+        let bsModal = null;
+        const editingId = ref(null);
+        const isEditMode = computed(() => !!editingId.value);
+
+        const emptyForm = () => ({ serviceName: '', description: '', executionMethod: '', pricingMethod: '整筆價', defaultPrice: 0, category: '' });
+        const form = ref(emptyForm());
+
+        const formatCurrency = (val) => new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', minimumFractionDigits: 0 }).format(Number(val) || 0);
+
+        const loadData = async () => {
+            try { const res = await api.catalog.getAll(); list.value = res.data || []; }
+            catch (e) { console.error('Catalog load error:', e); }
+        };
+
+        onMounted(() => {
+            loadData();
+            Vue.nextTick(() => { const el = document.getElementById('catalogModal'); if (el) bsModal = new bootstrap.Modal(el); });
+        });
+
+        const openModal = (item) => {
+            if (item) {
+                editingId.value = item.serviceId;
+                form.value = { serviceName: item.serviceName || '', description: item.description || '', executionMethod: item.executionMethod || '', pricingMethod: item.pricingMethod || '整筆價', defaultPrice: Number(item.defaultPrice) || 0, category: item.category || '' };
+            } else { editingId.value = null; form.value = emptyForm(); }
+            if (bsModal) bsModal.show();
+        };
+
+        const saveItem = async () => {
+            if (!form.value.serviceName.trim()) { alert('請輸入服務名稱'); return; }
+            saving.value = true;
+            try {
+                if (isEditMode.value) { await api.catalog.update(editingId.value, form.value); }
+                else { await api.catalog.create(form.value); }
+                if (bsModal) bsModal.hide();
+                await loadData();
+            } catch (e) { alert('儲存失敗：' + e.message); }
+            finally { saving.value = false; }
+        };
+
+        const deleteItem = async (s) => {
+            if (!confirm(`確定要刪除服務項目「${s.serviceName}」嗎？`)) return;
+            try { await api.catalog.delete(s.serviceId); await loadData(); }
+            catch (e) { alert('刪除失敗：' + e.message); }
+        };
+
+        return { list, form, saving, isEditMode, formatCurrency, openModal, saveItem, deleteItem, loadData };
+    }
+};
+</script>
+

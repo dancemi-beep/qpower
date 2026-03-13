@@ -1,0 +1,244 @@
+<script>
+const ClientView = {
+    template: `
+        <div>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="page-title mb-0">客戶管理</h2>
+                <button class="btn btn-primary shadow-sm" @click="openModal()"><i class="bi bi-person-plus me-1"></i>新增客戶</button>
+            </div>
+            <div class="position-fixed top-0 end-0 p-3" style="z-index:9999">
+                <div class="toast align-items-center text-bg-success border-0" id="clientToast" role="alert">
+                    <div class="d-flex"><div class="toast-body">{{ toastMsg }}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>
+                </div>
+            </div>
+            <div class="card border-0 shadow-sm"><div class="card-body p-0"><div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light"><tr><th>客戶編號</th><th>公司名稱</th><th>統編</th><th>主要聯絡人</th><th>電話</th><th class="text-end">操作</th></tr></thead>
+                    <tbody>
+                        <tr v-if="list.length===0"><td colspan="6" class="text-center py-5 text-muted"><i class="bi bi-people fs-2 d-block mb-2"></i>尚無客戶資料</td></tr>
+                        <tr v-for="c in list" :key="c.clientId" style="cursor:pointer" @click="openDetail(c)">
+                            <td><span class="badge bg-light text-dark border">{{ c.clientId }}</span></td>
+                            <td class="fw-semibold">{{ c.companyName }}</td>
+                            <td>{{ c.taxId || '-' }}</td>
+                            <td>{{ c.primaryContact || '-' }}<span v-if="c.contactCount>1" class="badge bg-secondary ms-1">+{{ c.contactCount-1 }}</span></td>
+                            <td>{{ c.primaryPhone || '-' }}</td>
+                            <td class="text-end" @click.stop>
+                                <button class="btn btn-sm btn-outline-info me-1" @click="openDetail(c)" title="詳情"><i class="bi bi-eye"></i></button>
+                                <button class="btn btn-sm btn-outline-primary me-1" @click="openModal(c)" title="編輯"><i class="bi bi-pencil"></i></button>
+                                <button class="btn btn-sm btn-outline-danger" @click="deleteClient(c)" title="刪除"><i class="bi bi-trash"></i></button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div></div></div>
+            <!-- 新增/編輯 Modal -->
+            <div class="modal fade" id="clientModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title">{{ isEditMode ? '編輯客戶' : '新增客戶' }}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <h6 class="text-primary mb-3"><i class="bi bi-building me-1"></i>基本資料</h6>
+                    <div class="mb-3"><label class="form-label">公司名稱 <span class="text-danger">*</span></label><input type="text" class="form-control" v-model="form.companyName" required></div>
+                    <div class="row mb-3">
+                        <div class="col-4"><label class="form-label">統一編號</label><input type="text" class="form-control" v-model="form.taxId" maxlength="8" placeholder="8 碼統編"></div>
+                        <div class="col-8"><label class="form-label">地址</label><input type="text" class="form-control" v-model="form.address"></div>
+                    </div><hr>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="text-primary mb-0"><i class="bi bi-people me-1"></i>聯絡人</h6>
+                        <button class="btn btn-sm btn-outline-primary" type="button" @click="addFormContact"><i class="bi bi-plus"></i>新增聯絡人</button>
+                    </div>
+                    <div v-if="form.contacts.length===0" class="text-muted small mb-3">尚未新增聯絡人</div>
+                    <div v-for="(ct,idx) in form.contacts" :key="idx" class="border rounded p-2 mb-2"><div class="row g-2 align-items-center">
+                        <div class="col-3"><input type="text" class="form-control form-control-sm" v-model="ct.contactName" placeholder="姓名"></div>
+                        <div class="col-3"><input type="text" class="form-control form-control-sm" v-model="ct.contactPhone" placeholder="電話"></div>
+                        <div class="col-3"><input type="email" class="form-control form-control-sm" v-model="ct.contactEmail" placeholder="Email"></div>
+                        <div class="col-2"><div class="form-check"><input class="form-check-input" type="radio" :name="'primary_'+idx" :checked="String(ct.isPrimary)==='true'" @change="setFormPrimary(idx)"><label class="form-check-label small">主要</label></div></div>
+                        <div class="col-1"><button class="btn btn-sm btn-outline-danger" type="button" @click="form.contacts.splice(idx,1)"><i class="bi bi-x"></i></button></div>
+                    </div></div><hr>
+                    <h6 class="text-primary mb-2"><i class="bi bi-journal-text me-1"></i>客戶要求紀錄</h6>
+                    <div v-for="(note,idx) in form.notes" :key="idx" class="input-group mb-2">
+                        <input type="text" class="form-control" v-model="note.content" placeholder="輸入紀錄內容...">
+                        <button class="btn btn-outline-danger" type="button" @click="form.notes.splice(idx,1)"><i class="bi bi-x"></i></button>
+                    </div>
+                    <button class="btn btn-sm btn-outline-primary" type="button" @click="form.notes.push({content:''})"><i class="bi bi-plus me-1"></i>新增紀錄</button>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" @click="saveClient" :disabled="saving"><span v-if="saving" class="spinner-border spinner-border-sm me-1"></span>{{ isEditMode ? '更新' : '建立' }}</button>
+                </div>
+            </div></div></div>
+            <!-- 詳情 Modal -->
+            <div class="modal fade" id="clientDetailModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title"><span class="badge bg-light text-dark border me-2">{{ detail.clientId }}</span>{{ detail.companyName }}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body text-center py-5" v-if="detailLoading"><div class="spinner-border text-primary"></div></div>
+                <div class="modal-body" v-else>
+                    <div class="row mb-3"><div class="col-4"><strong>統編：</strong>{{ detail.taxId||'-' }}</div><div class="col-8"><strong>地址：</strong>{{ detail.address||'-' }}</div></div><hr>
+                    <div class="mb-4"><h6><i class="bi bi-people me-1"></i>聯絡人</h6>
+                        <div v-if="!detail.contacts||detail.contacts.length===0" class="text-muted small">尚無聯絡人</div>
+                        <table v-else class="table table-sm mb-0"><thead><tr><th>姓名</th><th>電話</th><th>Email</th><th>主要</th></tr></thead>
+                        <tbody><tr v-for="ct in detail.contacts" :key="ct.contactId"><td>{{ ct.contactName }}</td><td>{{ ct.contactPhone }}</td><td>{{ ct.contactEmail }}</td><td><i v-if="String(ct.isPrimary)==='true'" class="bi bi-check-circle-fill text-success"></i></td></tr></tbody></table>
+                    </div><hr>
+                    <div class="mb-4"><h6><i class="bi bi-journal-text me-1"></i>客戶要求紀錄</h6>
+                        <div v-if="!detail.notes||detail.notes.length===0" class="text-muted small">尚無紀錄</div>
+                        <ul class="list-group list-group-flush"><li v-for="n in detail.notes" :key="n.noteId" class="list-group-item px-0"><div>{{ n.content }}</div><small class="text-muted">{{ formatDate(n.createdAt) }}</small></li></ul>
+                    </div><hr>
+                    <div><h6><i class="bi bi-receipt me-1"></i>歷史報價</h6>
+                        <div v-if="!detail.quotations||detail.quotations.length===0" class="text-muted small">尚無報價紀錄</div>
+                        <table v-else class="table table-sm table-bordered mb-0">
+                            <thead class="table-light"><tr><th>報價編號</th><th>專案</th><th>金額</th><th>狀態</th><th>日期</th></tr></thead>
+                            <tbody><tr v-for="q in detail.quotations" :key="q.quotationId">
+                                <td>{{ q.quotationId }}</td><td>{{ q.projectName||'-' }}</td><td class="text-end">{{ formatCurrency(q.grandTotal) }}</td>
+                                <td><span class="badge" :class="statusBadge(q.status)">{{ q.status }}</span></td><td>{{ q.quotationDate }}</td>
+                            </tr></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-primary" @click="editFromDetail"><i class="bi bi-pencil me-1"></i>編輯</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">關閉</button>
+                </div>
+            </div></div></div>
+        </div>
+    `,
+    setup() {
+        const list = ref([]);
+        const saving = ref(false);
+        const toastMsg = ref('');
+        let bsModal = null;
+        let bsDetailModal = null;
+        let bsToast = null;
+        const editingId = ref(null);
+        const isEditMode = computed(() => !!editingId.value);
+
+        const emptyForm = () => ({
+            companyName: '', taxId: '', address: '',
+            contacts: [], notes: []
+        });
+        const form = ref(emptyForm());
+
+        // 詳情
+        const detail = ref({});
+        const detailLoading = ref(false);
+
+        const formatCurrency = (val) => new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', minimumFractionDigits: 0 }).format(Number(val) || 0);
+        const formatDate = (d) => d ? new Date(d).toLocaleDateString('zh-TW') : '-';
+        const statusBadge = (s) => ({ '草稿': 'bg-secondary', '已報價': 'bg-primary', '已成交': 'bg-success', '未成交': 'bg-warning text-dark', '作廢': 'bg-danger' }[s] || 'bg-secondary');
+
+        const showToast = (msg) => {
+            toastMsg.value = msg;
+            Vue.nextTick(() => { if (bsToast) bsToast.show(); });
+        };
+
+        const loadData = async () => {
+            try { const res = await api.client.getAll(); list.value = res.data || []; }
+            catch (e) { console.error('Client load error:', e); }
+        };
+
+        onMounted(() => {
+            loadData();
+            Vue.nextTick(() => {
+                const el = document.getElementById('clientModal');
+                if (el) bsModal = new bootstrap.Modal(el);
+                const el2 = document.getElementById('clientDetailModal');
+                if (el2) bsDetailModal = new bootstrap.Modal(el2);
+                const el3 = document.getElementById('clientToast');
+                if (el3) bsToast = new bootstrap.Toast(el3, { delay: 3000 });
+            });
+        });
+
+        // --- 新增/編輯 ---
+        const addFormContact = () => {
+            form.value.contacts.push({ contactName: '', contactPhone: '', contactEmail: '', isPrimary: form.value.contacts.length === 0 ? 'true' : 'false' });
+        };
+        const setFormPrimary = (idx) => {
+            form.value.contacts.forEach((c, i) => { c.isPrimary = i === idx ? 'true' : 'false'; });
+        };
+
+        const openModal = async (client) => {
+            if (client) {
+                editingId.value = client.clientId;
+                // 載入完整 profile
+                try {
+                    const res = await api.client.getFullProfile(client.clientId);
+                    const p = res.data || {};
+                    form.value = {
+                        companyName: p.companyName || '', taxId: p.taxId || '', address: p.address || '',
+                        contacts: (p.contacts || []).map(c => ({ ...c })),
+                        notes: (p.notes || []).map(n => ({ ...n }))
+                    };
+                } catch (e) {
+                    form.value = { companyName: client.companyName || '', taxId: client.taxId || '', address: client.address || '', contacts: [], notes: [] };
+                }
+            } else {
+                editingId.value = null;
+                form.value = emptyForm();
+            }
+            if (bsModal) bsModal.show();
+        };
+
+        const saveClient = async () => {
+            if (!form.value.companyName.trim()) { alert('請輸入公司名稱'); return; }
+            saving.value = true;
+            try {
+                let clientId;
+                if (isEditMode.value) {
+                    clientId = editingId.value;
+                    await api.client.update(clientId, { companyName: form.value.companyName, taxId: form.value.taxId, address: form.value.address });
+                } else {
+                    const res = await api.client.create({ companyName: form.value.companyName, taxId: form.value.taxId, address: form.value.address });
+                    clientId = res.data.clientId;
+                }
+                // 儲存聯絡人：先刪舊再建新
+                if (isEditMode.value) {
+                    const oldContacts = await api.contact.getByClientId(clientId);
+                    for (const oc of (oldContacts.data || [])) { await api.contact.delete(oc.contactId); }
+                }
+                for (const ct of form.value.contacts) {
+                    if (ct.contactName && ct.contactName.trim()) {
+                        await api.contact.create({ clientId, contactName: ct.contactName, contactPhone: ct.contactPhone || '', contactEmail: ct.contactEmail || '', isPrimary: ct.isPrimary || 'false' });
+                    }
+                }
+                // 儲存紀錄：先刪舊再建新
+                if (isEditMode.value) {
+                    const oldNotes = await api.note.getByClientId(clientId);
+                    for (const on2 of (oldNotes.data || [])) { await api.note.delete(on2.noteId); }
+                }
+                for (const nt of form.value.notes) {
+                    if (nt.content && nt.content.trim()) {
+                        await api.note.create({ clientId, content: nt.content });
+                    }
+                }
+                if (bsModal) bsModal.hide();
+                await loadData();
+                showToast(isEditMode.value ? '客戶資料已更新' : '客戶已建立');
+            } catch (e) { alert('儲存失敗：' + e.message); }
+            finally { saving.value = false; }
+        };
+
+        // --- 詳情 ---
+        const openDetail = async (client) => {
+            detail.value = { clientId: client.clientId, companyName: client.companyName };
+            detailLoading.value = true;
+            if (bsDetailModal) bsDetailModal.show();
+            try {
+                const res = await api.client.getFullProfile(client.clientId);
+                detail.value = res.data || {};
+            } catch (e) { console.error(e); }
+            finally { detailLoading.value = false; }
+        };
+
+        const editFromDetail = () => {
+            if (bsDetailModal) bsDetailModal.hide();
+            openModal(detail.value);
+        };
+
+        // --- 刪除 ---
+        const deleteClient = async (client) => {
+            if (!confirm('確定要刪除客戶「' + client.companyName + '」及所有相關資料嗎？')) return;
+            try { await api.client.delete(client.clientId); await loadData(); showToast('客戶已刪除'); }
+            catch (e) { alert('刪除失敗：' + e.message); }
+        };
+
+        return { list, form, saving, toastMsg, isEditMode, detail, detailLoading, formatCurrency, formatDate, statusBadge, openModal, saveClient, addFormContact, setFormPrimary, openDetail, editFromDetail, deleteClient, loadData };
+    }
+};
+</script>
+
