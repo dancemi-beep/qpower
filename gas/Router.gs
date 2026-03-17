@@ -46,6 +46,7 @@ function handleQuotationAction(method, payload) {
     case 'getById': return service.getById(payload.id);
     case 'create': return service.create(payload.data);
     case 'update': return service.update(payload.id, payload.data);
+    case 'updateStatus': return service.updateStatus(payload.id, payload.status);
     case 'delete': return service.delete(payload.id);
     default: throw new Error(`Unknown method: Quotation.${method}`);
   }

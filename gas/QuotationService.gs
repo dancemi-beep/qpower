@@ -136,11 +136,41 @@ class QuotationService {
   }
 
   /**
+   * 更新報價單狀態
+   * 狀態流程：草稿 → 已報價 → 已成交/未成交/作廢
+   */
+  updateStatus(id, newStatus) {
+    const validStatuses = ['草稿', '已報價', '已成交', '未成交', '作廢'];
+    if (!validStatuses.includes(newStatus)) {
+      throw new Error(`無效的狀態：${newStatus}`);
+    }
+
+    const current = this.quotationDao.getById(id);
+    if (!current) throw new Error(`報價單 ${id} 不存在`);
+
+    // 狀態轉換規則驗證
+    const currentStatus = current.status || '草稿';
+    const allowedTransitions = {
+      '草稿': ['已報價', '作廢'],
+      '已報價': ['已成交', '未成交', '作廢'],
+      '已成交': [],
+      '未成交': [],
+      '作廢': []
+    };
+
+    if (!allowedTransitions[currentStatus].includes(newStatus)) {
+      throw new Error(`不允許從「${currentStatus}」轉換到「${newStatus}」`);
+    }
+
+    return this.quotationDao.update(id, { status: newStatus });
+  }
+
+  /**
    * 後端重新計算金額邏輯
    */
   _calculateTotals(items, discountType, discountValue, taxIncluded) {
       if (!items || items.length === 0) return { subtotal: 0, discountedTotal: 0, grandTotal: 0 };
-      
+
       let subtotal = 0;
       let additionalTotal = 0;
 
@@ -162,7 +192,7 @@ class QuotationService {
 
       let totalBeforeTax = discountedTotal + additionalTotal;
       let grandTotal = totalBeforeTax;
-      
+
       if (taxIncluded) {
           grandTotal = Math.round(totalBeforeTax * 1.05);
       }

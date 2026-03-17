@@ -85,6 +85,7 @@
             getById: (id) => api.request('Quotation.getById', { id }),
             create: (data) => api.request('Quotation.create', { data }),
             update: (id, data) => api.request('Quotation.update', { id, data }),
+            updateStatus: (id, status) => api.request('Quotation.updateStatus', { id, status }),
             delete: (id) => api.request('Quotation.delete', { id })
         },
 

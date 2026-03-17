@@ -2,9 +2,9 @@
 
 ---
 
-## ✅ 當前狀態：批次 A 完成（客戶資料結構升級）— 待 clasp push + 測試
+## ✅ 當前狀態：批次 A + B 完成 — 待 clasp push + 測試
 
-### 最後更新：2026-03-12
+### 最後更新：2026-03-17
 
 ### 批次 A 已完成（客戶功能增強）
 1. ✅ **Sheet 結構升級**：Clients 加 `taxId`、新建 `ClientContacts` / `ClientNotes` Sheet
@@ -17,22 +17,32 @@
    - 詳情 Modal（聯絡人列表 + 要求紀錄 + 歷史報價）
 5. ✅ **Setup.gs 修復**：`setupSheet()` 改為永遠同步標頭（解決新欄位不生效問題）
 
+### 批次 B 已完成（報價單功能強化）
+1. ✅ **B1 執行方式自動帶入**：`js_quotation_form.html` 的 `onServiceSelect` 已實作（第 273 行）
+2. ✅ **B2 報價單狀態流程**：
+   - **後端**：`QuotationService.updateStatus()` 實作狀態機（草稿→已報價→已成交/未成交/作廢）
+   - **Router + API**：新增 `Quotation.updateStatus` 路由與 API 方法
+   - **前端**：報價單列表加入狀態操作按鈕組
+     - 草稿：可編輯、可送出報價、可作廢
+     - 已報價：可標記成交/未成交/作廢
+     - 最終狀態（已成交/未成交/作廢）：僅可查看
+   - **狀態 Badge 更新**：草稿/已報價/已成交/未成交/作廢 五種狀態色彩
+
 ### ⚠️ 接續操作（下次開始前）
 1. 到 `qpower/gas` 目錄執行 `clasp push`
 2. GAS 編輯器跑一次 `initializeDatabase`（讓標頭更新 + 建立新 Sheet）
 3. 清掉 Clients Sheet 舊資料列
-4. 測試新增客戶（統編 + 聯絡人 + 紀錄一頁完成）
+4. 測試批次 A（新增客戶）+ 批次 B（報價單狀態轉換）
 
 ### 待辦
-- [ ] clasp push + initializeDatabase + 測試批次 A
-- [ ] **批次 B**：報價單帶入執行方式 + 狀態流程（草稿→已報價→已成交/未成交/作廢）
+- [ ] clasp push + initializeDatabase + 測試批次 A + B
 - [ ] **批次 C**：防連點 + Toast 提示優化（通用）
 - [ ] 報價單預覽頁（Phase 2.2 剩餘）
 - [ ] 公司設定頁面（Phase 2.5）
 - [ ] 儀表板到期提醒（Phase 2.6 剩餘）
 
 ### 下一步
-- clasp push → 測試批次 A → 批次 B（報價單狀態流程）
+- clasp push → 測試批次 A + B → 批次 C（防連點 + Toast 優化）
 
 ### 重要檔案
 | 檔案 | 用途 |
